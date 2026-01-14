@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowThread Protocol - Encriptación Social</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel para JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Estilos base para scrollbars oscuras -->
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICONOS (Lucide Recreados como Componentes) ---
+        const IconBase = ({ children, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
+
+        const Shield = ({ className }) => <IconBase className={className}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></IconBase>;
+        const PenTool = ({ className }) => <IconBase className={className}><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.5 7.5"/><path d="m2 2 7.5 7.5"/><path d="m2 2 7.5 7.5"/><path d="m2 2 7.5 7.5"/></IconBase>;
+        const ArrowRight = ({ className }) => <IconBase className={className}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></IconBase>;
+        const MoreHorizontal = ({ className }) => <IconBase className={className}><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></IconBase>;
+        const Heart = ({ className }) => <IconBase className={className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5 4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></IconBase>;
+        const MessageCircle = ({ className }) => <IconBase className={className}><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></IconBase>;
+        const Share2 = ({ className }) => <IconBase className={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></IconBase>;
+        const Copy = ({ className }) => <IconBase className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></IconBase>;
+        const Unlock = ({ className }) => <IconBase className={className}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></IconBase>;
+        const Key = ({ className }) => <IconBase className={className}><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/><path d="M6.2 13a2.7 2.7 0 0 0-2 2.7c0 1.2.7 2.2 1.8 2.7"/></IconBase>;
+        const Eye = ({ className }) => <IconBase className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const EyeOff = ({ className }) => <IconBase className={className}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></IconBase>;
+        const Send = ({ className }) => <IconBase className={className}><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></IconBase>;
+
+        // --- UTILIDADES CRIPTOGRÁFICAS (Web Crypto API) ---
+
+        // Convierte ArrayBuffer a Base64 string
+        const buff_to_base64 = (buff) => btoa(String.fromCharCode.apply(null, new Uint8Array(buff)));
+
+        // Convierte Base64 string a ArrayBuffer
+        const base64_to_buff = (b64) => {
+            try {
+                const binary_string = atob(b64);
+                const len = binary_string.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+                }
+                return bytes.buffer;
+            } catch (e) {
+                throw new Error("Base64 inválido");
+            }
+        };
+
+        // Genera una clave criptográfica a partir de una contraseña de texto (PBKDF2)
+        const getPasswordKey = (password) => 
+            window.crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+
+        // Deriva la clave AES-GCM usando la contraseña y una "Sal" (Salt)
+        const deriveKey = (passwordKey, salt, keyUsage) => 
+            window.crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+                passwordKey,
+                { name: "AES-GCM", length: 256 },
+                false,
+                keyUsage
+            );
+
+        // FUNCIÓN DE ENCRIPTADO REAL (AES-GCM 256)
+        const encryptData = async (secretData, password) => {
+            try {
+                const salt = window.crypto.getRandomValues(new Uint8Array(16)); // Genera sal aleatoria
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));   // Vector de inicialización único
+                const passwordKey = await getPasswordKey(password);
+                const aesKey = await deriveKey(passwordKey, salt, ["encrypt"]);
+                
+                const encryptedContent = await window.crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: iv },
+                    aesKey,
+                    new TextEncoder().encode(secretData)
+                );
+
+                // Empaquetamos todo junto: Salt + IV + ContenidoCifrado
+                const encryptedContentArr = new Uint8Array(encryptedContent);
+                const buff = new Uint8Array(salt.byteLength + iv.byteLength + encryptedContentArr.byteLength);
+                buff.set(salt, 0);
+                buff.set(iv, salt.byteLength);
+                buff.set(encryptedContentArr, salt.byteLength + iv.byteLength);
+
+                return buff_to_base64(buff);
+            } catch (e) {
+                console.error("Error encriptando:", e);
+                return null;
+            }
+        };
+
+        // FUNCIÓN DE DESENCRIPTADO REAL
+        const decryptData = async (encryptedData, password) => {
+            try {
+                const encryptedDataBuff = base64_to_buff(encryptedData);
+                
+                // Verificar longitud mínima (Salt 16 + IV 12 = 28 bytes)
+                if (encryptedDataBuff.byteLength < 28) throw new Error("Datos corruptos");
+
+                const salt = encryptedDataBuff.slice(0, 16);
+                const iv = encryptedDataBuff.slice(16, 28);
+                const data = encryptedDataBuff.slice(28);
+                
+                const passwordKey = await getPasswordKey(password);
+                const aesKey = await deriveKey(passwordKey, salt, ["decrypt"]);
+                
+                const decryptedContent = await window.crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv },
+                    aesKey,
+                    data
+                );
+                
+                return new TextDecoder().decode(decryptedContent);
+            } catch (e) {
+                throw new Error("Clave incorrecta o datos corruptos");
+            }
+        };
+
+        const ShadowThreadApp = () => {
+            // --- STATE ---
+            
+            // 1. Creation State (Sender)
+            const [draftMessage, setDraftMessage] = useState("");
+            const [senderKey, setSenderKey] = useState("gatitos"); 
+            const [showSenderKey, setShowSenderKey] = useState(false); 
+            const [isPosting, setIsPosting] = useState(false);
+
+            // 2. Transmission State (The Medium)
+            const [encryptedDisplay, setEncryptedDisplay] = useState("Encrypted_Waiting_For_Input...");
+            
+            // 3. Decryption State (Receiver)
+            const [inputPayload, setInputPayload] = useState("");
+            const [inputKey, setInputKey] = useState("");
+            const [showKey, setShowKey] = useState(false); 
+            
+            const [decryptedResult, setDecryptedResult] = useState("");
+            const [isDecrypted, setIsDecrypted] = useState(false);
+            const [showToast, setShowToast] = useState(false);
+            const [decryptError, setDecryptError] = useState(false);
+
+            // --- EFFECTS ---
+            
+            // Cargar clave guardada al iniciar
+            useEffect(() => {
+                const savedKey = localStorage.getItem('shadowThreadKey');
+                if (savedKey) {
+                    setInputKey(savedKey);
+                }
+            }, []);
+
+            // Guardar clave cada vez que cambia
+            useEffect(() => {
+                localStorage.setItem('shadowThreadKey', inputKey);
+            }, [inputKey]);
+
+            // --- HANDLERS ---
+
+            const handleEncryptAndPost = async () => {
+                if (!draftMessage || !senderKey) return; 
+                
+                setIsPosting(true);
+                
+                const cipherText = await encryptData(draftMessage, senderKey);
+                
+                if (cipherText) {
+                    setEncryptedDisplay(cipherText);
+                    setIsPosting(false);
+                    setDraftMessage("");
+                    
+                    setInputPayload("");
+                    setDecryptedResult("");
+                    setIsDecrypted(false);
+                    setDecryptError(false);
+                }
+            };
+
+            const handleCopy = (text) => {
+                navigator.clipboard.writeText(text);
+                setInputPayload(text); 
+                setShowToast(true);
+                setTimeout(() => setShowToast(false), 2000);
+            };
+
+            const handleDecrypt = async () => {
+                setDecryptError(false);
+                setDecryptedResult("");
+                
+                if (!inputPayload || !inputKey) return;
+
+                try {
+                    const result = await decryptData(inputPayload, inputKey);
+                    setDecryptedResult(result);
+                    setIsDecrypted(true);
+                } catch (error) {
+                    setDecryptedResult("⛔ Error de desencriptado: La clave es incorrecta o el mensaje ha sido alterado.");
+                    setIsDecrypted(false);
+                    setDecryptError(true);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-900 text-slate-200 font-sans selection:bg-emerald-500 selection:text-white">
+                
+                {/* Navbar */}
+                <nav className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50">
+                    <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <Shield className="w-6 h-6 text-emerald-400" />
+                        <span className="font-bold text-xl tracking-tighter text-white">Shadow<span className="text-emerald-400">Thread</span></span>
+                    </div>
+                    <div className="text-xs font-mono text-slate-500 hidden sm:block">Protocolo AES-GCM 256-bit</div>
+                    </div>
+                </nav>
+
+                {/* Hero Section */}
+                <header className="max-w-4xl mx-auto px-4 py-12 text-center">
+                    <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6">
+                    Encriptado Real en Redes Sociales
+                    </h1>
+                    <p className="text-lg text-slate-400 mb-8 max-w-2xl mx-auto">
+                    Sistema actualizado con <strong>AES-GCM 256-bit</strong>. Ahora el mensaje se cifra matemáticamente. 
+                    Si la clave no es exacta, es imposible recuperar el contenido original.
+                    </p>
+                </header>
+
+                {/* WORKFLOW SECTION */}
+                <section id="demo-section" className="max-w-7xl mx-auto px-4 py-8 pb-24">
+                    
+                    <div className="grid lg:grid-cols-3 gap-8 items-start">
+                    
+                    {/* CARD 1: SENDER (ENCRYPTION) */}
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 backdrop-blur-sm relative shadow-xl h-full flex flex-col">
+                        <div className="absolute -top-3 -left-3 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shadow-lg z-10">1</div>
+                        
+                        <div className="flex items-center gap-2 mb-4">
+                        <PenTool className="w-5 h-5 text-blue-400" />
+                        <h3 className="text-lg font-bold text-white">Emisor</h3>
+                        </div>
+                        
+                        <div className="mb-4 bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                        <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Definir Clave de Cifrado</label>
+                        <div className="relative">
+                            <input 
+                                type={showSenderKey ? "text" : "password"}
+                                value={senderKey}
+                                onChange={(e) => setSenderKey(e.target.value)}
+                                className="w-full bg-transparent text-sm text-blue-200 focus:outline-none placeholder-slate-600 font-mono"
+                                placeholder="Escribe una clave secreta..."
+                            />
+                            <button
+                                onClick={() => setShowSenderKey(!showSenderKey)}
+                                className="absolute right-2 top-2 text-slate-500 hover:text-blue-400 transition-colors"
+                            >
+                                {showSenderKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                        </div>
+                        </div>
+
+                        <div className="flex-1 flex flex-col gap-4">
+                        <textarea 
+                            value={draftMessage}
+                            onChange={(e) => setDraftMessage(e.target.value)}
+                            placeholder="Ej: Coordenadas seguras: 34.55, -58.45. Destruir mensaje al leer."
+                            className="w-full flex-1 min-h-[120px] bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none resize-none font-mono"
+                        ></textarea>
+                        
+                        <button 
+                            onClick={handleEncryptAndPost}
+                            disabled={!draftMessage || isPosting || !senderKey}
+                            className={`w-full py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2
+                            ${(!draftMessage || !senderKey)
+                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
+                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'}`}
+                        >
+                            {isPosting ? (
+                            <span className="animate-pulse">Calculando Hash...</span>
+                            ) : (
+                            <>
+                                <Send className="w-4 h-4" /> Encriptar con "{showSenderKey ? senderKey : '***'}"
+                            </>
+                            )}
+                        </button>
+                        </div>
+                        
+                        <div className="hidden lg:block absolute -right-6 top-1/2 -translate-y-1/2 z-0 text-slate-600">
+                        <ArrowRight className="w-8 h-8" />
+                        </div>
+                    </div>
+
+
+                    {/* CARD 2: MEDIUM (INSTAGRAM) */}
+                    <div className="relative group">
+                        <div className="absolute -top-3 -left-3 bg-white text-slate-900 w-8 h-8 rounded-full flex items-center justify-center font-bold shadow-lg z-20 border border-slate-200">2</div>
+                        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                        <div className="relative bg-black border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+                        
+                        <div className="flex items-center justify-between p-3 border-b border-slate-800">
+                            <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden border border-slate-600">
+                                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" />
+                            </div>
+                            <span className="font-semibold text-sm text-white">viajero_anonimo</span>
+                            </div>
+                            <MoreHorizontal className="w-5 h-5 text-slate-400" />
+                        </div>
+
+                        <div className="bg-slate-800 aspect-video w-full relative overflow-hidden">
+                            <img 
+                            src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+                            alt="Gato" 
+                            className="w-full h-full object-cover opacity-80 hover:scale-105 transition-transform duration-700"
+                            />
+                        </div>
+
+                        <div className="p-4">
+                            <div className="flex gap-4 mb-3">
+                                <Heart className="w-6 h-6 text-white" />
+                                <MessageCircle className="w-6 h-6 text-white" />
+                                <Share2 className="w-6 h-6 text-white" />
+                            </div>
+                            <div className="text-sm text-slate-300 mb-3">
+                            <span className="font-semibold text-white mr-2">viajero_anonimo</span>
+                            Un atardecer increíble... 🌇
+                            </div>
+
+                            <div className="space-y-3 border-t border-slate-800 pt-3 bg-slate-900/30 -mx-4 px-4 pb-2">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Comentarios (Canal Público)</p>
+                            
+                            <div className="flex gap-2 items-start opacity-50">
+                                <span className="font-semibold text-xs text-white">usuario_random</span>
+                                <span className="text-xs text-slate-400">¡Qué lindo gatito! 😍</span>
+                            </div>
+
+                            <div className="flex gap-2 items-start bg-emerald-900/10 p-2 rounded-lg border border-emerald-500/30 relative group/comment transition-all duration-300">
+                                <span className="font-semibold text-xs text-emerald-400">agente_04</span>
+                                <div className="flex-1 min-w-0">
+                                <p className="text-xs font-mono text-emerald-100 break-all leading-relaxed break-words">
+                                    {encryptedDisplay}
+                                </p>
+                                <div className="mt-2 flex items-center justify-between">
+                                    <button 
+                                        onClick={() => handleCopy(encryptedDisplay)}
+                                        className="flex items-center gap-1 text-[10px] bg-emerald-900/50 text-emerald-400 px-3 py-1.5 rounded hover:bg-emerald-800 transition-colors border border-emerald-800 w-full justify-center font-bold"
+                                    >
+                                        <Copy className="w-3 h-3" /> COPIAR CÓDIGO AES
+                                    </button>
+                                </div>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+                        
+                        <div className="hidden lg:block absolute -right-6 top-1/2 -translate-y-1/2 z-0 text-slate-600">
+                        <ArrowRight className="w-8 h-8" />
+                        </div>
+                    </div>
+
+
+                    {/* CARD 3: RECEIVER (DECRYPTION) */}
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 backdrop-blur-sm relative shadow-xl h-full flex flex-col">
+                        <div className="absolute -top-3 -left-3 bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shadow-lg z-10">3</div>
+                        
+                        <div className="flex items-center gap-2 mb-4">
+                        <Unlock className="w-5 h-5 text-emerald-400" />
+                        <h3 className="text-lg font-bold text-white">Receptor</h3>
+                        </div>
+                        <p className="text-xs text-slate-400 mb-4">
+                        Intenta descifrar. Si la clave no coincide con la del Emisor, fallará.
+                        </p>
+
+                        <div className="space-y-4 flex-1">
+                        <div>
+                            <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Payload (Cifrado AES-GCM)</label>
+                            <textarea 
+                            value={inputPayload}
+                            onChange={(e) => setInputPayload(e.target.value)}
+                            placeholder="Esperando datos cifrados..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-mono text-emerald-100 focus:ring-2 focus:ring-emerald-500 outline-none h-24 resize-none break-all"
+                            ></textarea>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 flex justify-between items-center">
+                            <span>Clave Simétrica (Guardada)</span>
+                            <span className="text-[9px] bg-slate-800 px-2 py-0.5 rounded text-emerald-500">Auto-Save Activado</span>
+                            </label>
+                            <div className="relative">
+                            <input 
+                                type={showKey ? "text" : "password"}
+                                value={inputKey}
+                                onChange={(e) => setInputKey(e.target.value)}
+                                placeholder={`Prueba con: "${senderKey}"`}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none pr-10"
+                            />
+                            <button
+                                onClick={() => setShowKey(!showKey)}
+                                className="absolute right-2 top-2 text-slate-500 hover:text-white transition-colors p-1"
+                                title={showKey ? "Ocultar clave" : "Mostrar clave"}
+                            >
+                                {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={handleDecrypt}
+                            disabled={!inputPayload || !inputKey}
+                            className={`w-full py-2 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2
+                            ${(!inputPayload || !inputKey) 
+                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
+                                : 'bg-emerald-500 hover:bg-emerald-600 text-white'}`}
+                        >
+                            {isDecrypted ? 'Mensaje Descifrado' : 'Intentar Descifrar'}
+                        </button>
+
+                        <div className={`transition-all duration-300 rounded-lg border p-3 min-h-[80px] flex items-center justify-center text-center overflow-hidden
+                            ${isDecrypted 
+                            ? 'bg-emerald-900/20 border-emerald-500/50' 
+                            : (decryptError ? 'bg-red-900/20 border-red-500/50' : 'bg-slate-900/50 border-slate-700 border-dashed')}`}>
+                            
+                            {isDecrypted ? (
+                                <p className="text-sm font-mono text-emerald-300 break-words w-full">{decryptedResult}</p>
+                            ) : (
+                                <p className={`text-xs ${decryptError ? 'text-red-400' : 'text-slate-500'}`}>
+                                {decryptedResult || "El mensaje descifrado aparecerá aquí."}
+                                </p>
+                            )}
+                        </div>
+
+                        </div>
+                    </div>
+
+                    </div>
+                </section>
+
+                <footer className="text-center text-slate-600 text-xs pb-8">
+                    <p>Prueba cambiar una sola letra de la clave en el paso 3 y verás que el descifrado falla.</p>
+                </footer>
+
+                {showToast && (
+                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-medium animate-bounce z-50">
+                    ¡Copiado! Pégalo en el Paso 3.
+                    </div>
+                )}
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ShadowThreadApp />);
+    </script>
+</body>
+</html>
