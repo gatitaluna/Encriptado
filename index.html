@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShadowThread Protocol - Encriptación Social</title>
+    <title>GatitaLuna Protocol - Encriptación Social</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,16 +15,59 @@
     <!-- Babel para JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Estilos base para scrollbars oscuras -->
+    <!-- Estilos base para scrollbars oscuras y PROTECCIÓN CONTRA COPIA -->
     <style>
-        body { background-color: #0f172a; color: #e2e8f0; }
+        body { 
+            background-color: #0f172a; 
+            color: #e2e8f0; 
+            /* Deshabilita la selección de texto en toda la página */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1e293b; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* Clase para el modo privacidad (desenfoque) */
+        .privacy-blur {
+            filter: blur(20px) grayscale(100%);
+            pointer-events: none;
+        }
+        
+        /* Capa de protección de captura */
+        #screenshot-blocker {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-family: monospace;
+            text-align: center;
+        }
+
+        /* Animación suave para el modal Windows 11 */
+        @keyframes modalPop {
+            0% { transform: scale(0.95); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-modal {
+            animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
     </style>
 </head>
 <body>
+    <div id="screenshot-blocker">
+        <div>
+            <h1 class="text-2xl font-bold text-red-500 mb-2">⚠️ ALERTA DE SEGURIDAD</h1>
+            <p>Captura de pantalla detectada o ventana sin foco.</p>
+        </div>
+    </div>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -50,6 +93,10 @@
         const Eye = ({ className }) => <IconBase className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconBase>;
         const EyeOff = ({ className }) => <IconBase className={className}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></IconBase>;
         const Send = ({ className }) => <IconBase className={className}><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></IconBase>;
+        const Clipboard = ({ className }) => <IconBase className={className}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></IconBase>;
+        const HelpCircle = ({ className }) => <IconBase className={className}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></IconBase>;
+        const X = ({ className }) => <IconBase className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconBase>;
+        const Info = ({ className }) => <IconBase className={className}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></IconBase>;
 
         // --- UTILIDADES CRIPTOGRÁFICAS (Web Crypto API) ---
 
@@ -143,6 +190,8 @@
         const ShadowThreadApp = () => {
             // --- STATE ---
             
+            const [showGuide, setShowGuide] = useState(true); // Nuevo estado para la guía
+
             // 1. Creation State (Sender)
             const [draftMessage, setDraftMessage] = useState("");
             const [senderKey, setSenderKey] = useState("gatitos"); 
@@ -177,6 +226,60 @@
                 localStorage.setItem('shadowThreadKey', inputKey);
             }, [inputKey]);
 
+            // --- PROTECCIÓN CONTRA CAPTURA DE PANTALLA ---
+            useEffect(() => {
+                // 1. Bloquear Click Derecho
+                const handleContextMenu = (e) => {
+                    e.preventDefault();
+                };
+
+                // 2. Detectar Tecla PrintScreen (o combinaciones comunes) y oscurecer
+                const handleKeyDown = (e) => {
+                    if (e.key === 'PrintScreen' || (e.metaKey && e.shiftKey && e.key === 's')) {
+                        // Oscurecer inmediatamente
+                        document.body.style.display = 'none';
+                        setTimeout(() => {
+                            alert('⚠️ Las capturas de pantalla están deshabilitadas por seguridad.');
+                            document.body.style.display = 'block';
+                        }, 100);
+                    }
+                };
+
+                // 3. Detectar Pérdida de Foco (Blur) - Para herramientas de recorte externas
+                const handleVisibilityChange = () => {
+                    if (document.hidden) {
+                        document.title = "🔒 Protegido";
+                    } else {
+                        document.title = "GatitaLuna Protocol - Encriptación Social";
+                    }
+                };
+
+                const handleBlur = () => {
+                    document.getElementById('screenshot-blocker').style.display = 'flex';
+                    document.getElementById('root').classList.add('privacy-blur');
+                };
+
+                const handleFocus = () => {
+                    document.getElementById('screenshot-blocker').style.display = 'none';
+                    document.getElementById('root').classList.remove('privacy-blur');
+                };
+
+                window.addEventListener('contextmenu', handleContextMenu);
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('blur', handleBlur);
+                window.addEventListener('focus', handleFocus);
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+
+                return () => {
+                    window.removeEventListener('contextmenu', handleContextMenu);
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('blur', handleBlur);
+                    window.removeEventListener('focus', handleFocus);
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                };
+            }, []);
+
+
             // --- HANDLERS ---
 
             const handleEncryptAndPost = async () => {
@@ -205,6 +308,16 @@
                 setTimeout(() => setShowToast(false), 2000);
             };
 
+            // Nuevo: Pegar desde portapapeles
+            const handlePaste = async () => {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    setInputPayload(text);
+                } catch (err) {
+                    alert('⚠️ El navegador bloqueó el pegado automático. Por favor haz clic dentro del cuadro y usa Ctrl+V (o Cmd+V).');
+                }
+            };
+
             const handleDecrypt = async () => {
                 setDecryptError(false);
                 setDecryptedResult("");
@@ -221,6 +334,15 @@
                     setDecryptError(true);
                 }
             };
+            
+            // Nuevo: Copiar resultado descifrado
+            const handleCopyResult = () => {
+                if(decryptedResult) {
+                    navigator.clipboard.writeText(decryptedResult);
+                    setShowToast(true);
+                    setTimeout(() => setShowToast(false), 2000);
+                }
+            };
 
             return (
                 <div className="min-h-screen bg-slate-900 text-slate-200 font-sans selection:bg-emerald-500 selection:text-white">
@@ -230,25 +352,117 @@
                     <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <Shield className="w-6 h-6 text-emerald-400" />
-                        <span className="font-bold text-xl tracking-tighter text-white">Shadow<span className="text-emerald-400">Thread</span></span>
+                        <span className="font-bold text-xl tracking-tighter text-white">Gatita<span className="text-emerald-400">Luna</span></span>
                     </div>
-                    <div className="text-xs font-mono text-slate-500 hidden sm:block">Protocolo AES-GCM 256-bit</div>
+                    <div className="flex items-center gap-4">
+                        <div className="text-xs font-mono text-slate-500 hidden sm:block">Protocolo AES-GCM 256-bit</div>
+                        <button onClick={() => setShowGuide(true)} className="text-slate-400 hover:text-emerald-400 transition-colors" title="Ver Guía">
+                            <HelpCircle className="w-5 h-5" />
+                        </button>
+                    </div>
                     </div>
                 </nav>
 
                 {/* Hero Section */}
-                <header className="max-w-4xl mx-auto px-4 py-12 text-center">
+                <header className="max-w-4xl mx-auto px-4 py-12 text-center relative z-20">
                     <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6">
                     Encriptado Real en Redes Sociales
                     </h1>
-                    <p className="text-lg text-slate-400 mb-8 max-w-2xl mx-auto">
+                    <p className="text-lg text-slate-400 mb-4 max-w-2xl mx-auto">
                     Sistema actualizado con <strong>AES-GCM 256-bit</strong>. Ahora el mensaje se cifra matemáticamente. 
                     Si la clave no es exacta, es imposible recuperar el contenido original.
                     </p>
                 </header>
 
+                {/* WINDOWS 11 STYLE GUIDE WINDOW */}
+                {showGuide && (
+                    <div className="max-w-3xl mx-auto px-4 mb-12 relative z-30 animate-modal">
+                        {/* Windows 11 Card Container: Rounded corners, dark glass effect, thin border, subtle shadow */}
+                        <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden ring-1 ring-black/5">
+                            
+                            {/* Title Bar: Clean, transparent, integrated controls */}
+                            <div className="flex justify-between items-center px-4 py-3 border-b border-white/5 bg-white/5">
+                                <div className="flex items-center gap-2">
+                                    <Info className="w-4 h-4 text-emerald-400" />
+                                    <span className="font-semibold text-sm text-slate-200 tracking-wide">Guía de Inicio</span>
+                                </div>
+                                <button 
+                                    onClick={() => setShowGuide(false)}
+                                    className="text-slate-400 hover:bg-red-500 hover:text-white rounded-md p-1.5 transition-all duration-200"
+                                    title="Cerrar"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                            
+                            {/* Content: Clean typography, good spacing */}
+                            <div className="p-6 md:p-8">
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    
+                                    {/* Step 1 */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-emerald-400 font-bold mb-1">
+                                            <div className="bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
+                                                <PenTool className="w-4 h-4" />
+                                            </div>
+                                            <h3>1. Emisor (Tú)</h3>
+                                        </div>
+                                        <p className="text-slate-300 text-sm leading-relaxed">
+                                            Escribe tu mensaje en el Paso 1 y define una <strong className="text-white">Clave Secreta</strong> (ej: "gatitos").
+                                        </p>
+                                        <div className="text-xs text-slate-500 bg-black/20 p-2 rounded border border-white/5">
+                                            El mensaje se convertirá en un código ilegible.
+                                        </div>
+                                    </div>
+
+                                    {/* Step 2 */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-blue-400 font-bold mb-1">
+                                            <div className="bg-blue-500/10 p-1.5 rounded-lg border border-blue-500/20">
+                                                <Share2 className="w-4 h-4" />
+                                            </div>
+                                            <h3>2. El Medio</h3>
+                                        </div>
+                                        <p className="text-slate-300 text-sm leading-relaxed">
+                                            Copia el código y pégalo en cualquier lugar público (Instagram, WhatsApp).
+                                        </p>
+                                        <div className="text-xs text-slate-500 bg-black/20 p-2 rounded border border-white/5">
+                                            Para los demás parecerá texto basura.
+                                        </div>
+                                    </div>
+
+                                    {/* Step 3 */}
+                                    <div className="md:col-span-2 border-t border-white/10 pt-6 mt-2">
+                                        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                            <div className="flex-1 space-y-2">
+                                                <div className="flex items-center gap-2 text-purple-400 font-bold mb-1">
+                                                    <div className="bg-purple-500/10 p-1.5 rounded-lg border border-purple-500/20">
+                                                        <Unlock className="w-4 h-4" />
+                                                    </div>
+                                                    <h3>3. Receptor (Tu Amigo)</h3>
+                                                </div>
+                                                <p className="text-slate-300 text-sm">
+                                                    Tu amigo debe pegar el código en el Paso 3 y usar la <strong className="text-white underline decoration-emerald-500/50">MISMA CLAVE EXACTA</strong>.
+                                                </p>
+                                            </div>
+                                            
+                                            <button 
+                                                onClick={() => setShowGuide(false)}
+                                                className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-2.5 rounded-lg shadow-lg shadow-blue-500/20 transition-all active:scale-95 text-sm whitespace-nowrap self-end md:self-auto"
+                                            >
+                                                Comenzar
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* WORKFLOW SECTION */}
-                <section id="demo-section" className="max-w-7xl mx-auto px-4 py-8 pb-24">
+                <section id="demo-section" className="max-w-7xl mx-auto px-4 py-8 pb-24 relative z-10">
                     
                     <div className="grid lg:grid-cols-3 gap-8 items-start">
                     
@@ -330,7 +544,7 @@
 
                         <div className="bg-slate-800 aspect-video w-full relative overflow-hidden">
                             <img 
-                            src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
+                            src="https://raw.githubusercontent.com/gatitaluna/Encriptado/main/gatitaluna.jpg" 
                             alt="Gato" 
                             className="w-full h-full object-cover opacity-80 hover:scale-105 transition-transform duration-700"
                             />
@@ -395,7 +609,16 @@
 
                         <div className="space-y-4 flex-1">
                         <div>
-                            <label className="text-[10px] uppercase text-slate-500 font-bold mb-1 block">Payload (Cifrado AES-GCM)</label>
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="text-[10px] uppercase text-slate-500 font-bold block">Payload (Cifrado AES-GCM)</label>
+                                <button 
+                                    onClick={handlePaste}
+                                    className="flex items-center gap-1 text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                                    title="Pegar desde portapapeles"
+                                >
+                                    <Clipboard className="w-3 h-3" /> PEGAR
+                                </button>
+                            </div>
                             <textarea 
                             value={inputPayload}
                             onChange={(e) => setInputPayload(e.target.value)}
@@ -438,13 +661,21 @@
                             {isDecrypted ? 'Mensaje Descifrado' : 'Intentar Descifrar'}
                         </button>
 
-                        <div className={`transition-all duration-300 rounded-lg border p-3 min-h-[80px] flex items-center justify-center text-center overflow-hidden
+                        <div className={`transition-all duration-300 rounded-lg border p-3 min-h-[80px] flex flex-col items-center justify-center text-center overflow-hidden relative
                             ${isDecrypted 
                             ? 'bg-emerald-900/20 border-emerald-500/50' 
                             : (decryptError ? 'bg-red-900/20 border-red-500/50' : 'bg-slate-900/50 border-slate-700 border-dashed')}`}>
                             
                             {isDecrypted ? (
-                                <p className="text-sm font-mono text-emerald-300 break-words w-full">{decryptedResult}</p>
+                                <>
+                                    <p className="text-sm font-mono text-emerald-300 break-words w-full mb-2">{decryptedResult}</p>
+                                    <button 
+                                        onClick={handleCopyResult}
+                                        className="flex items-center gap-1 text-[10px] bg-emerald-900/50 text-emerald-400 px-2 py-1 rounded hover:bg-emerald-800 transition-colors border border-emerald-800"
+                                    >
+                                        <Copy className="w-3 h-3" /> COPIAR RESULTADO
+                                    </button>
+                                </>
                             ) : (
                                 <p className={`text-xs ${decryptError ? 'text-red-400' : 'text-slate-500'}`}>
                                 {decryptedResult || "El mensaje descifrado aparecerá aquí."}
@@ -459,12 +690,12 @@
                 </section>
 
                 <footer className="text-center text-slate-600 text-xs pb-8">
-                    <p>Prueba cambiar una sola letra de la clave en el paso 3 y verás que el descifrado falla.</p>
+                    <p>Código libre para copiar. Desarrollado por JMB.</p>
                 </footer>
 
                 {showToast && (
                     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-2 rounded-full shadow-lg text-sm font-medium animate-bounce z-50">
-                    ¡Copiado! Pégalo en el Paso 3.
+                    ¡Copiado!
                     </div>
                 )}
 
